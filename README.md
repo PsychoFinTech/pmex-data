@@ -7,11 +7,32 @@ futures history:
   public report page's ~3-month-per-request limit.
 - **`pmex-perpetual`** — stitch expiry-dated contracts into a single continuous
   (front-month, back-adjusted) series.
-  [pmex_perpetuals_2008_2024_Q1.csv](https://github.com/user-attachments/files/29802021/pmex_perpetuals_2008_2024_Q1.csv)
 
 
 No login required — the downloader issues the exact same public request the
 site's **Show** button makes.
+
+## Quick Start: Pre-built Dataset
+
+Don't want to download and stitch data yourself? **Download the ready-made top-15
+perpetuals dataset:**
+
+**📊 [`pmex_perpetuals_2008_2024_Q1.csv`](pmex_perpetuals_2008_2024_Q1.csv)** (16 years, 2008–2024 Q1)
+
+This CSV contains continuous front-month series for the 15 most actively traded
+PMEX instruments (FX Gold pairs, crude oil, gold, indices) with back-adjusted
+prices for continuous returns. **No installation needed — just download and use.**
+
+Includes:
+- USDGOLD, EURGOLD, GBPGOLD, JPYGOLD, CADGOLD, AUDGOLD, CHFGOLD (FX Gold)
+- CRUDE10, CRUDE100 (oil)
+- GO1OZ, GO10OZ (gold)
+- NSDQ100, SP500, DJ (indices)
+- GOLDUSDJPY, GOLDGBPUSD (leveraged FX crosses)
+
+See [`DATA_README.md`](DATA_README.md) for dataset details, statistics, and column descriptions.
+
+---
 
 ## Install
 
