@@ -178,6 +178,15 @@ def scrape(start: date, end: date, symbol_filter=None, delay=0.7, verbose=True):
     seen = set()
     rows = []
     windows = list(make_windows(start, end))
+
+    # Parse symbol filter: support pipe-separated list or single substring
+    symbol_set = None
+    if symbol_filter:
+        if "|" in symbol_filter:
+            symbol_set = {s.strip().upper() for s in symbol_filter.split("|")}
+        else:
+            symbol_filter = symbol_filter.upper()
+
     for i, (d_from, d_to) in enumerate(windows, 1):
         if verbose:
             print(
@@ -190,7 +199,9 @@ def scrape(start: date, end: date, symbol_filter=None, delay=0.7, verbose=True):
         added = 0
         for rec in raw:
             row = decode_record(rec)
-            if symbol_filter and symbol_filter.upper() not in row["Symbol"].upper():
+            if symbol_set and row["Symbol"].upper() not in symbol_set:
+                continue
+            elif symbol_filter and symbol_filter not in row["Symbol"].upper():
                 continue
             key = (row["TradingDate"], row["Symbol"])
             if key in seen:
@@ -233,8 +244,8 @@ def main(argv=None):
     p.add_argument("--format", choices=["csv", "json"], default="csv",
                    help="output format (default: csv)")
     p.add_argument("--symbol", default=None,
-                   help="only keep symbols containing this substring "
-                        "(case-insensitive), e.g. GOLD, CRUDE, KIBOR")
+                   help="only keep symbols: pipe-separated list (e.g. USDGOLD|GBPGOLD) "
+                        "or substring (e.g. GOLD). Case-insensitive.")
     p.add_argument("--delay", type=float, default=0.7,
                    help="seconds to sleep between requests (default: 0.7)")
     p.add_argument("--quiet", action="store_true", help="suppress progress output")
