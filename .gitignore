@@ -4,3 +4,10 @@ __pycache__/
 *.json
 !.gitkeep
 .venv/
+
+# Python build / packaging artifacts
+*.egg-info/
+build/
+dist/
+.pytest_cache/
+.ruff_cache/
