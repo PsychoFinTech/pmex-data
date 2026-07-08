@@ -13,7 +13,7 @@ pmex-download --from 2008-01-01 --to 2023-12-31 -o pmex_raw_2008_2023.csv
 
 # Build continuous front-month perpetuals from the expiry-dated contracts
 pmex-perpetual pmex_raw_2008_2023.csv \
-  --symbols "CRUDE10,CRUDE100,GO1OZ,GO10OZ,GO100OZ,SL10,SL100OZ,SL500OZ" \
+  --symbols "USDGOLD,EURGOLD,GBPGOLD,JPYGOLD,CADGOLD,AUDGOLD,CHFGOLD,CRUDE10,GO1OZ,NSDQ100,CRUDE100,SL10,GO10OZ,GOLDUSDJPY,GOLDGBPUSD" \
   -o pmex_perpetuals.csv
 ```
 
@@ -26,30 +26,30 @@ pmex-perpetual pmex_raw_2008_2023.csv \
 | Unique trading dates | 4,118 |
 | File size | ~5 MB |
 
-## Top 15 Symbols (by frequency across 2008-2023)
+## Top 15 Symbols (by total traded volume across 2008-2023)
 
-| Rank | Symbol | Rows | Type |
-|------|--------|------|------|
-| 1 | KIBOR3M | 12,237 | Interest Rate |
-| 2 | MINIGOLD | 7,086 | Mini Gold |
-| 3 | TOLAGOLD | 6,529 | Intraday Gold (day-of-week, not stitchable) |
-| 4 | CRUDE100 | 6,051 | Oil (100 bbl) |
-| 5 | SL500OZ | 6,038 | Silver (500oz) |
-| 6 | GO1OZ | 6,036 | Gold (1oz) |
-| 7 | GO100OZ | 6,000 | Gold (100oz) |
-| 8 | MTOLAGOLD | 5,737 | Mini Intraday Gold |
-| 9 | GOLD | 5,671 | Physical Gold |
-| 10 | CRUDE10 | 5,653 | Oil (10 bbl) |
-| 11 | SL100OZ | 5,623 | Silver (100oz) |
-| 12 | PALMOLEIN | 5,500 | Agricultural |
-| 13 | GOLDKILO | 5,434 | Gold (1 kg) |
-| 14 | GO10OZ | 5,402 | Gold (10oz) |
-| 15 | SL10 | 5,334 | Silver (10oz) |
+| Rank | Symbol | Total Volume | Type |
+|------|--------|-------------|------|
+| 1 | USDGOLD | 9,367,028,572 | FX Gold (USD) |
+| 2 | EURGOLD | 4,627,021,390 | FX Gold (EUR) |
+| 3 | GBPGOLD | 4,257,713,982 | FX Gold (GBP) |
+| 4 | JPYGOLD | 3,078,220,150 | FX Gold (JPY) |
+| 5 | CADGOLD | 516,833,703 | FX Gold (CAD) |
+| 6 | AUDGOLD | 233,512,987 | FX Gold (AUD) |
+| 7 | CHFGOLD | 225,049,412 | FX Gold (CHF) |
+| 8 | CRUDE10 | 2,874,526 | Oil (10 bbl) |
+| 9 | GO1OZ | 2,758,790 | Gold (1oz) |
+| 10 | NSDQ100 | 1,871,294 | NASDAQ 100 Index |
+| 11 | CRUDE100 | 609,159 | Oil (100 bbl) |
+| 12 | SL10 | 517,686 | Silver (10oz) |
+| 13 | GO10OZ | 389,687 | Gold (10oz) |
+| 14 | GOLDUSDJPY | 382,629 | Gold FX (USD/JPY) |
+| 15 | GOLDGBPUSD | 367,918 | Gold FX (GBP/USD) |
 
-**Note on stitchability:** KIBOR3M, TOLAGOLD, MTOLAGOLD, MINIGOLD, GOLD, GOLDKILO, and PALMOLEIN
-appear in the raw data as bare or intraday symbols (no `<MM><YY>` expiry code), so they
-cannot be rolled into perpetuals. The oil and metal contracts (`CRUDE*`, `GO*`, `SL*`) carry
-proper expiry codes and produce clean continuous series.
+All 15 carry proper `<MM><YY>` expiry codes and can be rolled into continuous
+perpetual series. FX Gold pairs (ranks 1–7) dominate volume by orders of
+magnitude — they represent leveraged gold contracts denominated in major
+currencies and are by far the most actively traded instruments on PMEX.
 
 ## Output columns
 
