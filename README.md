@@ -94,6 +94,7 @@ pmex-perpetual pmex_ohlc.csv --symbols "CRUDE10,GO1OZ,SL10" -o perpetuals.csv
 | `input_csv` | A CSV produced by `pmex-download` (positional) |
 | `--symbols` | Comma-separated base symbols (default: all discovered) |
 | `--method {back-adjust,ratio,none}` | Roll-gap adjustment (default: `back-adjust`) |
+| `--extend-bare` | Splice the pre-2020 unlabelled history onto the old end (see below) |
 | `-o, --output` | Output file (default: `pmex_perpetuals.csv`) |
 | `--limit N` | Process at most N symbols |
 | `--quiet` | Suppress progress output |
@@ -115,6 +116,31 @@ Adjustment methods: `back-adjust` (additive Panama, default), `ratio`
 (proportional), `none` (raw front-month splice).
 
 Output columns: `Symbol, TradingDate, Open, High, Low, Close, Volume, FrontContract`.
+
+### Pre-2020 history (`--extend-bare`)
+
+PMEX only started stamping expiry codes onto contracts around **26 Oct 2020**.
+Before that it published one unlabelled bar per symbol per day (`GOLD`,
+`CRUDE10`, …) — effectively an already-continuous front-month series with no
+visible rolls. By default the stitcher only sees the dated contracts, so history
+starts at the 2020 boundary.
+
+`--extend-bare` splices that pre-2020 bare history onto the old end of each
+series:
+
+```bash
+pmex-perpetual pmex_ohlc.csv --symbols "USDGOLD,CRUDE10,GO1OZ" --extend-bare -o perpetuals.csv
+```
+
+The bare and dated blocks never share a trading date (the seam is a clean
+adjacent-day boundary), so the seam gap is measured between the last bare bar and
+the first dated bar and removed — returns stay continuous across the 2020
+relabelling. Spliced bars carry the bare symbol (no expiry) in `FrontContract`.
+
+This is near-exact for gold and the FX-gold pairs, whose pre-2020 series are
+smooth (no hidden rolls). For crude oil the pre-2020 series has genuine
+volatility that can't be distinguished from any unlabelled roll, so treat its
+back-history as best-effort rather than provably exact.
 
 ## How the downloader works
 

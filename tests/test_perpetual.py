@@ -3,7 +3,7 @@ from datetime import date
 
 import pytest
 
-from pmex.perpetual import read_contracts, stitch_perpetual
+from pmex.perpetual import read_bare_series, read_contracts, stitch_perpetual
 
 JA24 = date(2024, 1, 1)  # roll_date 2023-12-31
 FE24 = date(2024, 2, 1)  # roll_date 2024-01-31
@@ -119,3 +119,58 @@ def test_read_contracts_skips_nonpositive_prices(tmp_path):
          "TradedVolume": "5", "SettlementPrice": "0", "FXRate": "1"},
     ])
     assert read_contracts(str(p), "CRUDE10") == {}
+
+
+def test_read_bare_series_matches_only_exact_bare_symbol(tmp_path):
+    p = tmp_path / "data.csv"
+    _write_csv(p, [
+        # bare -> kept
+        {"TradingDate": "2020-10-24", "Symbol": "CRUDE10",
+         "Open": "40", "High": "41", "Low": "39", "Close": "40",
+         "TradedVolume": "7", "SettlementPrice": "40", "FXRate": "1"},
+        # dated -> not a bare bar
+        {"TradingDate": "2020-10-26", "Symbol": "CRUDE10-DE20",
+         "Open": "38", "High": "39", "Low": "37", "Close": "38",
+         "TradedVolume": "7", "SettlementPrice": "38", "FXRate": "1"},
+        # intraday suffix -> not a bare bar
+        {"TradingDate": "2020-10-24", "Symbol": "CRUDE10-THU",
+         "Open": "40", "High": "41", "Low": "39", "Close": "40",
+         "TradedVolume": "7", "SettlementPrice": "40", "FXRate": "1"},
+        # different base -> ignored
+        {"TradingDate": "2020-10-24", "Symbol": "CRUDE100",
+         "Open": "40", "High": "41", "Low": "39", "Close": "40",
+         "TradedVolume": "7", "SettlementPrice": "40", "FXRate": "1"},
+    ])
+    bare = read_bare_series(str(p), "CRUDE10")
+    assert list(bare) == [date(2020, 10, 24)]
+
+
+def _bare_book():
+    # One bare bar the day before the dated series begins.
+    return {date(2023, 12, 28): _bar(90)}
+
+
+def test_extend_bare_splice_is_continuous_back_adjust():
+    # The dated series starts at adjusted 103 on 2023-12-29 (see back-adjust test);
+    # the bare bar must land exactly on that value so the seam has no jump.
+    out = stitch_perpetual(_two_contract_book(), method="back-adjust", bare=_bare_book())
+    by_date = {b["date"]: b["close"] for b in out}
+    assert by_date[date(2023, 12, 28)] == pytest.approx(103)   # bare, seam-aligned
+    assert by_date[date(2023, 12, 29)] == pytest.approx(103)   # first dated, unchanged
+    assert by_date[date(2024, 1, 2)] == pytest.approx(105)     # newest still true
+
+
+def test_extend_bare_marks_bare_bars_with_null_contract():
+    out = stitch_perpetual(_two_contract_book(), method="none", bare=_bare_book())
+    bare_bars = [b for b in out if b["contract"] is None]
+    assert [b["date"] for b in bare_bars] == [date(2023, 12, 28)]
+    # raw splice: bare close is untouched under method="none"
+    assert bare_bars[0]["close"] == pytest.approx(90)
+
+
+def test_extend_bare_ignores_bars_after_boundary():
+    # A bare bar dated inside/after the dated series must not be spliced.
+    bare = {date(2023, 12, 28): _bar(90), date(2024, 1, 5): _bar(999)}
+    out = stitch_perpetual(_two_contract_book(), method="none", bare=bare)
+    assert date(2024, 1, 5) not in {b["date"] for b in out if b["contract"] is None}
+    assert 999 not in [b["close"] for b in out]

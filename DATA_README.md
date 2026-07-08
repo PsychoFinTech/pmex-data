@@ -11,11 +11,22 @@ pip install -e .
 # Fetch each year (or range) — server returns up to 3 months per request
 pmex-download --from 2008-01-01 --to 2023-12-31 -o pmex_raw_2008_2023.csv
 
-# Build continuous front-month perpetuals from the expiry-dated contracts
+# Build continuous front-month perpetuals from the expiry-dated contracts.
+# --extend-bare splices the pre-2020 unlabelled history onto the old end so the
+# series run the full 16 years, seam-adjusted for continuity at the Oct-2020
+# relabelling boundary.
 pmex-perpetual pmex_raw_2008_2023.csv \
   --symbols "USDGOLD,EURGOLD,GBPGOLD,JPYGOLD,CADGOLD,AUDGOLD,CHFGOLD,CRUDE10,GO1OZ,NSDQ100,CRUDE100,SL10,GO10OZ,GOLDUSDJPY,GOLDGBPUSD" \
+  --extend-bare \
   -o pmex_perpetuals.csv
 ```
+
+> **Note on the 2020 boundary:** PMEX only began stamping expiry codes onto
+> contracts around **26 Oct 2020**. Earlier history is unlabelled (one bar per
+> symbol per day). `--extend-bare` splices it on with a continuity adjustment at
+> the seam — near-exact for gold/FX-gold (smooth pre-2020 series), best-effort
+> for crude oil (whose real volatility can't be told apart from unlabelled
+> rolls). Drop the flag for a post-2020-only, purely expiry-labelled dataset.
 
 ## Dataset stats (when generated)
 

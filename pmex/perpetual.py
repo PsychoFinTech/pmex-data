@@ -22,6 +22,17 @@ Adjustment methods:
 * ``back-adjust`` (default) — additive Panama: subtract the cumulative roll gap.
 * ``ratio`` — proportional: multiply by the cumulative roll ratio.
 * ``none`` — raw front-month splice with no gap removal (for reference/plotting).
+
+Pre-2020 bare history
+---------------------
+
+Before ~26 Oct 2020 PMEX published contracts without expiry codes (bare
+``GOLD``, ``CRUDE10``, ...), one bar per symbol per date — effectively an
+already-continuous front-month series with no visible rolls. With ``extend_bare``
+these bars are spliced onto the *old* end of the dated series. Because the bare
+and dated blocks never share a trading date (the seam is a clean adjacent-day
+boundary), the seam gap is measured from the last bare bar to the first dated
+bar and removed, so returns stay continuous across the 2020 relabelling.
 """
 
 from __future__ import annotations
@@ -84,6 +95,35 @@ def read_contracts(csv_file, base_symbol):
     return contracts
 
 
+def read_bare_series(csv_file, base_symbol):
+    """Read the pre-labelling *bare* bars for ``base_symbol``.
+
+    A bare bar is a row whose Symbol is exactly ``base_symbol`` with no expiry
+    code or other suffix (e.g. ``CRUDE10``, never ``CRUDE10-DE20`` or
+    ``CRUDE10-THU``). Returns ``{trading_date: bar}``; non-positive prices are
+    skipped. Pre-2020 PMEX lists exactly one such bar per date.
+    """
+    target = base_symbol.upper()
+    series: dict[date, dict] = {}
+    with open(csv_file, newline="") as f:
+        for row in csv.DictReader(f):
+            if row["Symbol"].strip().upper() != target:
+                continue
+            try:
+                d = parse_date(row["TradingDate"])
+                o = float(row["Open"]) if row["Open"] else None
+                h = float(row["High"]) if row["High"] else None
+                low = float(row["Low"]) if row["Low"] else None
+                c = float(row["Close"]) if row["Close"] else None
+                vol = float(row["TradedVolume"]) if row["TradedVolume"] else 0.0
+            except (ValueError, KeyError):
+                continue
+            if any(x is None or x <= 0 for x in (o, h, low, c)):
+                continue
+            series[d] = {"open": o, "high": h, "low": low, "close": c, "volume": vol}
+    return series
+
+
 def _front_series(contracts):
     """Select one front-month bar per trading date.
 
@@ -138,11 +178,53 @@ def _roll_gap(older_expiry, newer_expiry, contracts, boundary_date):
     return newer_close - older_close, newer_close / older_close
 
 
-def stitch_perpetual(contracts, method="back-adjust"):
+def _splice_bare(out, bare, method):
+    """Prepend adjusted pre-2020 bare bars onto the dated series ``out``.
+
+    ``out`` is the already-adjusted dated series (ascending). Only bare bars
+    strictly before the first dated date are used. The seam gap is taken between
+    the last bare bar and the first (adjusted) dated bar and removed, so the
+    splice is continuous. Returns the combined ascending series.
+    """
+    if not out or not bare:
+        return out
+    boundary = out[0]["date"]
+    before = {d: b for d, b in bare.items() if d < boundary}
+    if not before:
+        return out
+
+    raw_last = before[max(before)]["close"]
+    anchor = out[0]["close"]  # first dated bar, already adjusted
+    if method == "back-adjust":
+        offset, factor = anchor - raw_last, 1.0
+    elif method == "ratio":
+        if raw_last <= 0:
+            return out
+        offset, factor = 0.0, anchor / raw_last
+    else:  # none — raw splice
+        offset, factor = 0.0, 1.0
+
+    bare_bars = []
+    for d in sorted(before):
+        bar = before[d]
+        if method == "ratio":
+            adj = {k: bar[k] * factor for k in ("open", "high", "low", "close")}
+        else:
+            adj = {k: bar[k] + offset for k in ("open", "high", "low", "close")}
+        adj["date"] = d
+        adj["volume"] = bar["volume"]
+        adj["contract"] = None  # bare / pre-labelling
+        bare_bars.append(adj)
+    return bare_bars + out
+
+
+def stitch_perpetual(contracts, method="back-adjust", bare=None):
     """Build a continuous, back-adjusted front-month series.
 
     Returns a list of bars (dicts with ``date, open, high, low, close, volume,
-    contract``) in ascending date order, one per trading date.
+    contract``) in ascending date order, one per trading date. When ``bare`` (a
+    ``{date: bar}`` map from :func:`read_bare_series`) is given, the pre-2020
+    unlabelled history is spliced onto the old end (see module docstring).
     """
     if method not in METHODS:
         raise ValueError(f"unknown method {method!r}; choose from {METHODS}")
@@ -180,6 +262,9 @@ def stitch_perpetual(contracts, method="back-adjust"):
             adj["volume"] = bar["volume"]
             adj["contract"] = f"{expiry.year % 100:02d}-{expiry.month:02d}"
             out.append(adj)
+
+    if bare:
+        out = _splice_bare(out, bare, method)
     return out
 
 
@@ -191,6 +276,8 @@ def write_perpetuals(perpetuals, output_file):
         writer.writeheader()
         for base_symbol in sorted(perpetuals):
             for bar in perpetuals[base_symbol]:
+                contract = bar["contract"]
+                front = base_symbol if contract is None else f"{base_symbol}-{contract}"
                 writer.writerow({
                     "Symbol": base_symbol,
                     "TradingDate": bar["date"].strftime("%Y-%m-%d"),
@@ -199,7 +286,7 @@ def write_perpetuals(perpetuals, output_file):
                     "Low": f"{bar['low']:.4f}",
                     "Close": f"{bar['close']:.4f}",
                     "Volume": f"{bar['volume']:.0f}",
-                    "FrontContract": f"{base_symbol}-{bar['contract']}",
+                    "FrontContract": front,
                 })
 
 
@@ -225,6 +312,9 @@ def build_parser() -> argparse.ArgumentParser:
                    help="comma-separated base symbols (default: all discovered)")
     p.add_argument("--method", choices=METHODS, default="back-adjust",
                    help="roll-gap adjustment (default: back-adjust)")
+    p.add_argument("--extend-bare", action="store_true",
+                   help="splice the pre-2020 unlabelled (bare) history onto the "
+                        "old end of each series, seam-adjusted for continuity")
     p.add_argument("-o", "--output", default="pmex_perpetuals.csv", help="output file")
     p.add_argument("--limit", type=int, default=None, help="process at most N symbols")
     p.add_argument("--quiet", action="store_true", help="suppress progress output")
@@ -253,11 +343,14 @@ def main(argv=None):
         if not contracts:
             log.info("[%d/%d] %s: no dated contracts", i, len(symbols), base)
             continue
-        stitched = stitch_perpetual(contracts, method=args.method)
+        bare = read_bare_series(args.input_csv, base) if args.extend_bare else None
+        stitched = stitch_perpetual(contracts, method=args.method, bare=bare)
         if stitched:
             perpetuals[base] = stitched
-            log.info("[%d/%d] %s: %d bars (%d expiries)",
-                     i, len(symbols), base, len(stitched), len(contracts))
+            n_bare = sum(1 for b in stitched if b["contract"] is None)
+            extra = f", +{n_bare} bare" if n_bare else ""
+            log.info("[%d/%d] %s: %d bars (%d expiries%s)",
+                     i, len(symbols), base, len(stitched), len(contracts), extra)
 
     write_perpetuals(perpetuals, args.output)
     total = sum(len(b) for b in perpetuals.values())
