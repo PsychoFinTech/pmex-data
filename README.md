@@ -7,6 +7,8 @@ futures history:
   public report page's ~3-month-per-request limit.
 - **`pmex-perpetual`** — stitch expiry-dated contracts into a single continuous
   (front-month, back-adjusted) series.
+  [pmex_perpetuals_2008_2024_Q1.csv](https://github.com/user-attachments/files/29802021/pmex_perpetuals_2008_2024_Q1.csv)
+
 
 No login required — the downloader issues the exact same public request the
 site's **Show** button makes.
